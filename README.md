@@ -28,6 +28,10 @@ A simple client-side Minecraft mod that **automatically translates incoming chat
 | Java | 17 |
 | Dependency | [YetAnotherConfigLib (YACL)](https://www.curseforge.com/minecraft/mc-mods/yet-another-config-lib) 3.6.6+ (required, client) |
 
+## Download / 下载
+
+- CurseForge: <https://www.curseforge.com/minecraft/mc-mods/simple-auto-translation>
+
 ## Commands / 命令
 
 | Command | Description |
