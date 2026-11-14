@@ -1,5 +1,7 @@
 package com.autochattranslator;
 
+import com.autochattranslator.translation.OpenAiProvider;
+import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.LabelOption;
 import dev.isxander.yacl3.api.Option;
@@ -17,6 +19,7 @@ import dev.isxander.yacl3.gui.controllers.string.StringController;
 import dev.isxander.yacl3.gui.controllers.string.StringControllerElement;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
@@ -28,6 +31,8 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Mod.EventBusSubscriber(modid = AutoChatTranslator.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class ClientConfig {
@@ -61,6 +66,33 @@ public final class ClientConfig {
             }
         });
 
+        Option<ProviderType> provider = option("provider", Config.PROVIDER)
+                .controller(o -> EnumControllerBuilder.create(o).enumClass(ProviderType.class)
+                        .valueFormatter(value -> text("provider." + value.name().toLowerCase(Locale.ROOT))))
+                .build();
+        Option<String> baseUrl = string("openaiBaseUrl", Config.OPENAI_BASE_URL);
+        Option<String> model = string("openaiModel", Config.OPENAI_MODEL);
+        Option<String> apiKey = secret("openaiApiKey", Config.OPENAI_API_KEY);
+
+        AtomicReference<OpenAiPreset> presetRef = new AtomicReference<>(OpenAiPreset.CUSTOM);
+        Option<OpenAiPreset> preset = Option.<OpenAiPreset>createBuilder()
+                .name(text("option.openaiPreset"))
+                .description(OptionDescription.of(text("option.openaiPreset.description")))
+                .binding(OpenAiPreset.CUSTOM, presetRef::get, presetRef::set)
+                .controller(o -> EnumControllerBuilder.create(o).enumClass(OpenAiPreset.class)
+                        .valueFormatter(value -> text("preset." + value.name().toLowerCase(Locale.ROOT))))
+                .build();
+        preset.addEventListener((option, event) -> {
+            if (event == OptionEventListener.Event.STATE_CHANGE) {
+                applyPreset(option.pendingValue(), provider, baseUrl, model);
+            }
+        });
+        ButtonOption testButton = ButtonOption.createBuilder()
+                .name(text("button.test"))
+                .description(OptionDescription.of(text("button.test.description")))
+                .action(screen -> testConnection(baseUrl, model, apiKey))
+                .build();
+
         return YetAnotherConfigLib.createBuilder()
                 .title(text("title"))
                 .category(ConfigCategory.createBuilder()
@@ -77,25 +109,26 @@ public final class ClientConfig {
                                 .build())
                         .group(group("appearance")
                                 .option(bool("showSender", Config.SHOW_SENDER))
+                                .option(bool("hoverOriginal", Config.HOVER_ORIGINAL))
                                 .option(string("translationPrefix", Config.PREFIX))
                                 .build())
                         .build())
                 .category(ConfigCategory.createBuilder()
                         .name(text("category.provider"))
                         .option(LabelOption.create(text("privacy")))
-                        .option(option("provider", Config.PROVIDER)
-                                .controller(o -> EnumControllerBuilder.create(o).enumClass(ProviderType.class)
-                                        .valueFormatter(value -> text("provider." + value.name().toLowerCase(Locale.ROOT))))
-                                .build())
+                        .option(provider)
                         .group(group("mymemory")
                                 .option(string("mymemoryEndpoint", Config.MYMEMORY_ENDPOINT))
                                 .option(string("mymemoryEmail", Config.MYMEMORY_EMAIL))
                                 .build())
                         .group(group("openai")
-                                .option(string("openaiBaseUrl", Config.OPENAI_BASE_URL))
-                                .option(string("openaiModel", Config.OPENAI_MODEL))
-                                .option(secret("openaiApiKey", Config.OPENAI_API_KEY))
+                                .option(preset)
+                                .option(LabelOption.create(text("preset_hint")))
+                                .option(baseUrl)
+                                .option(model)
+                                .option(apiKey)
                                 .option(integer("openaiMaxTokens", Config.OPENAI_MAX_TOKENS, 32, 4096))
+                                .option(testButton)
                                 .build())
                         .group(group("google").collapsed(true)
                                 .option(string("googleEndpoint", Config.GOOGLE_ENDPOINT))
@@ -118,6 +151,52 @@ public final class ClientConfig {
                     TranslationService.onConfigSaved();
                 })
                 .build();
+    }
+
+    private static void applyPreset(OpenAiPreset preset, Option<ProviderType> provider,
+                                    Option<String> baseUrl, Option<String> model) {
+        if (preset.baseUrl == null) {
+            return;
+        }
+        provider.requestSet(ProviderType.OPENAI);
+        baseUrl.requestSet(preset.baseUrl);
+        if (preset.model != null) {
+            model.requestSet(preset.model);
+        }
+    }
+
+    private static void testConnection(Option<String> baseUrl, Option<String> model, Option<String> apiKey) {
+        Minecraft minecraft = Minecraft.getInstance();
+        String url = baseUrl.pendingValue();
+        String name = model.pendingValue();
+        String key = apiKey.pendingValue();
+        if (url.isBlank() || name.isBlank()) {
+            toast(minecraft, text("toast.test.failed.title"), text("toast.test.missing"));
+            return;
+        }
+
+        String target = Config.TARGET_LANGUAGE.get();
+        toast(minecraft, text("toast.test.running.title"), text("toast.test.running", name));
+        CompletableFuture.runAsync(() -> {
+            Component title;
+            Component message;
+            try {
+                String translated = OpenAiProvider.translate("Hello, how are you?", target, url, name, key, 128);
+                title = text("toast.test.success.title");
+                message = text("toast.test.success.message", translated);
+            } catch (Exception exception) {
+                title = text("toast.test.failed.title");
+                message = text("toast.test.failed.message", String.valueOf(exception.getMessage()));
+            }
+            final Component toastTitle = title;
+            final Component toastMessage = message;
+            minecraft.execute(() -> toast(minecraft, toastTitle, toastMessage));
+        });
+    }
+
+    private static void toast(Minecraft minecraft, Component title, Component message) {
+        minecraft.getToasts().addToast(SystemToast.multiline(
+                minecraft, SystemToast.SystemToastIds.PERIODIC_NOTIFICATION, title, message));
     }
 
     private static <T> Option.Builder<T> option(String key, ForgeConfigSpec.ConfigValue<T> value) {
@@ -169,8 +248,8 @@ public final class ClientConfig {
         return OptionGroup.createBuilder().name(text("group." + key));
     }
 
-    private static Component text(String key) {
-        return Component.translatable("autochattranslator." + key);
+    private static Component text(String key, Object... args) {
+        return Component.translatable("autochattranslator." + key, args);
     }
 
     private ClientConfig() {

@@ -2,6 +2,7 @@ package com.autochattranslator;
 
 import com.electronwill.nightconfig.core.file.CommentedFileConfig;
 import com.mojang.logging.LogUtils;
+import dev.isxander.yacl3.api.ButtonOption;
 import dev.isxander.yacl3.api.LabelOption;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.gui.OptionListWidget;
@@ -10,6 +11,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.components.toasts.SystemToast;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.contents.TranslatableContents;
@@ -50,8 +52,12 @@ public final class ConfigScreenSmokeTest {
                     originalEnabled = Config.ENABLED.get();
                     open();
                     check(screen.config.categories().size() == 3, "three categories");
-                    check(options().size() == 24, "all 24 settings exposed");
-                    check(screen.getTitle().getString().equals("自动聊天翻译 · 设置"), "Chinese resources loaded");
+                    check(options().size() == 26, "all 26 settings exposed");
+                    String language = mc.options.languageCode;
+                    String expectedTitle = language.startsWith("zh") ? "自动聊天翻译 · 设置" : "Auto Chat Translator · Settings";
+                    check(screen.getTitle().getString().equals(expectedTitle), "localized title for " + language);
+                    check(options().stream().noneMatch(o -> o.name().getString().contains("autochattranslator.")), "all option labels localized");
+                    check(screen.config.categories().stream().noneMatch(c -> c.name().getString().contains("autochattranslator.")), "all category names localized");
                 }
                 case 1 -> {
                     capture("config-general.png");
@@ -81,6 +87,10 @@ public final class ConfigScreenSmokeTest {
                     key.requestSet("test-key-not-a-real-secret");
                     check(key.controller().formatValue().getString().equals("*".repeat(26)), "key masked");
                     check(Config.OPENAI_API_KEY.get().isEmpty(), "unsaved key does not leak into live configuration");
+                    ConfigScreenSmokeTest.<OpenAiPreset>option("openaiPreset").requestSet(OpenAiPreset.OPENROUTER);
+                    check(ConfigScreenSmokeTest.<ProviderType>option("provider").pendingValue() == ProviderType.OPENAI, "preset selects OpenAI provider");
+                    check(ConfigScreenSmokeTest.<String>option("openaiBaseUrl").pendingValue().startsWith("https://openrouter.ai"), "preset fills base URL");
+                    check(ConfigScreenSmokeTest.<String>option("openaiModel").pendingValue().equals("openai/gpt-4o-mini"), "preset fills model name");
                     screen.tabNavigationBar.selectTab(1, false);
                 }
                 case 3 -> {
@@ -96,6 +106,12 @@ public final class ConfigScreenSmokeTest {
                     screen.cancelOrReset();
                     open();
                     check(ConfigScreenSmokeTest.<String>option("openaiApiKey").pendingValue().isEmpty(), "cancel discards key");
+                    ButtonOption testButton = buttonOption("test");
+                    ConfigScreenSmokeTest.<String>option("openaiBaseUrl").requestSet("");
+                    ConfigScreenSmokeTest.<String>option("openaiModel").requestSet("");
+                    testButton.action().accept(screen, testButton);
+                    check(mc.getToasts().getToast(SystemToast.class, SystemToast.SystemToastIds.PERIODIC_NOTIFICATION) != null,
+                            "test connection validates URL and model");
                     for (Option<?> option : options()) {
                         option.requestSetDefault();
                     }
@@ -140,7 +156,7 @@ public final class ConfigScreenSmokeTest {
 
     private static List<Option<?>> options() {
         return screen.config.categories().stream().flatMap(c -> c.groups().stream())
-                .flatMap(g -> g.options().stream()).filter(o -> !(o instanceof LabelOption))
+                .flatMap(g -> g.options().stream()).filter(o -> !(o instanceof LabelOption) && !(o instanceof ButtonOption))
                 .<Option<?>>map(o -> o).toList();
     }
 
@@ -160,8 +176,16 @@ public final class ConfigScreenSmokeTest {
         screen.mouseReleased(bounds.xLimit() - 5, bounds.y() + bounds.height() / 2.0, 0);
     }
 
-    private static OptionListWidget.OptionEntry optionEntry(String key) {
-        OptionListWidget list = findList(screen);
+    private static ButtonOption buttonOption(String key) {
+        return screen.config.categories().stream().flatMap(c -> c.groups().stream())
+                .flatMap(g -> g.options().stream())
+                .filter(o -> o instanceof ButtonOption button
+                        && button.name().getContents() instanceof TranslatableContents t
+                        && t.getKey().equals("autochattranslator.button." + key))
+                .map(o -> (ButtonOption) o).findFirst().orElseThrow();
+    }
+
+    private static OptionListWidget.OptionEntry optionEntry(String key) {        OptionListWidget list = findList(screen);
         check(list != null, "visible option list");
         return list.children().stream().filter(e -> e instanceof OptionListWidget.OptionEntry o
                 && o.option == option(key)).map(e -> (OptionListWidget.OptionEntry) e).findFirst().orElseThrow();

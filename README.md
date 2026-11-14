@@ -9,12 +9,14 @@ A simple client-side Minecraft mod that **automatically translates incoming chat
 ## Features / 功能
 
 - Auto-translates incoming chat and shows the original / 自动翻译聊天消息，保留原文
+- Hover a translation to see the original, click to copy it / 悬停译文显示原文，点击复制原文
 - Optional system-message translation (NPC & mod dialogue) / 可选翻译系统消息
 - Multiple providers / 多翻译后端：
   - **MyMemory** — free, no API key / 免费、无需密钥
   - **Google** — public endpoint / 公共接口
   - **DeepL** — requires API key / 需要 API key
-  - **OpenAI-compatible** — OpenRouter, MiMo, etc. (base URL + model + key)
+  - **OpenAI-compatible** — OpenRouter, DeepSeek, MiMo, Ollama and more (presets + connection test)
+    / OpenAI 兼容接口，内置常用服务商预设和一键连接测试
 - In-game config screen (YACL) with a full Chinese UI / 基于 YACL 的游戏内中文配置界面
 - Translation cache, request queue, timeout and length filters / 缓存、队列、超时、长度过滤
 - Config file (`config/autochattranslator-client.toml`) with Chinese comments / 带中文注释的配置文件

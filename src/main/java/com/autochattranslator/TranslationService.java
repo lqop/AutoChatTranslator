@@ -6,7 +6,10 @@ import com.autochattranslator.translation.TranslationProvider;
 import com.mojang.logging.LogUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
+import net.minecraft.network.chat.MutableComponent;
 import org.slf4j.Logger;
 
 import java.util.Collections;
@@ -58,13 +61,13 @@ public final class TranslationService {
         runtimeEnabled = !runtimeEnabled;
     }
 
-    public static String status() {
-        return "自动聊天翻译：" + (isEnabled() ? "已开启" : "已关闭")
-                + "，服务=" + Config.PROVIDER.get()
-                + "，原文=" + Config.SOURCE_LANGUAGE.get()
-                + "，目标=" + Config.TARGET_LANGUAGE.get()
-                + "，缓存=" + CACHE.size()
-                + "。输入 /ctrans config 打开设置。";
+    public static Component status() {
+        return Component.translatable("autochattranslator.status",
+                Component.translatable(isEnabled() ? "autochattranslator.status.on" : "autochattranslator.status.off"),
+                Config.PROVIDER.get(),
+                Config.SOURCE_LANGUAGE.get(),
+                Config.TARGET_LANGUAGE.get(),
+                CACHE.size());
     }
 
     public static void translate(ParsedChat chat) {
@@ -131,7 +134,7 @@ public final class TranslationService {
         if (minecraft.player == null) {
             return;
         }
-        minecraft.gui.getChat().addMessage(Component.literal("[翻译] 正在翻译……").withStyle(ChatFormatting.GRAY));
+        minecraft.gui.getChat().addMessage(Component.translatable("autochattranslator.test.pending").withStyle(ChatFormatting.GRAY));
         try {
             EXECUTOR.execute(() -> {
                 try {
@@ -139,14 +142,14 @@ public final class TranslationService {
                             .translate(text, Config.SOURCE_LANGUAGE.get(), Config.TARGET_LANGUAGE.get())
                             .strip();
                     minecraft.execute(() -> minecraft.gui.getChat().addMessage(
-                            Component.literal("[翻译] " + translated).withStyle(ChatFormatting.GRAY)));
+                            Component.translatable("autochattranslator.test.result", translated).withStyle(ChatFormatting.GRAY)));
                 } catch (Exception exception) {
                     minecraft.execute(() -> minecraft.gui.getChat().addMessage(
-                            Component.literal("[翻译] 失败：" + exception.getMessage()).withStyle(ChatFormatting.RED)));
+                            Component.translatable("autochattranslator.test.failed", String.valueOf(exception.getMessage())).withStyle(ChatFormatting.RED)));
                 }
             });
         } catch (RejectedExecutionException rejected) {
-            minecraft.gui.getChat().addMessage(Component.literal("[翻译] 等待队列已满，请稍后再试").withStyle(ChatFormatting.RED));
+            minecraft.gui.getChat().addMessage(Component.translatable("autochattranslator.test.queue_full").withStyle(ChatFormatting.RED));
         }
     }
 
@@ -204,8 +207,21 @@ public final class TranslationService {
         String sender = chat.playerChat() && Config.SHOW_SENDER.get() && chat.sender() != null
                 ? "<" + chat.sender() + "> "
                 : "";
-        Component line = Component.literal(Config.PREFIX.get() + sender + translated)
-                .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
+        MutableComponent line = Component.literal(Config.PREFIX.get() + sender + translated);
+        if (Config.HOVER_ORIGINAL.get() && !chat.content().isBlank()) {
+            String original = chat.content();
+            line = line.copy().withStyle(style -> style
+                    .withColor(ChatFormatting.GRAY)
+                    .withItalic(true)
+                    .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                            Component.translatable("autochattranslator.hover.original", original)
+                                    .append("\n")
+                                    .append(Component.translatable("autochattranslator.hover.copy")
+                                            .withStyle(ChatFormatting.DARK_GRAY))))
+                    .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, original)));
+        } else {
+            line = line.withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC);
+        }
         minecraft.gui.getChat().addMessage(line);
     }
 

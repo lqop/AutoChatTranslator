@@ -2,7 +2,6 @@ package com.autochattranslator;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.minecraft.commands.Commands;
-import net.minecraft.network.chat.Component;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -14,16 +13,16 @@ public final class ClientCommands {
     public static void onRegisterCommands(RegisterClientCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("ctrans")
                 .executes(context -> {
-                    context.getSource().sendSuccess(() -> Component.literal(TranslationService.status()), false);
+                    context.getSource().sendSuccess(() -> TranslationService.status(), false);
                     return 1;
                 })
                 .then(Commands.literal("status").executes(context -> {
-                    context.getSource().sendSuccess(() -> Component.literal(TranslationService.status()), false);
+                    context.getSource().sendSuccess(() -> TranslationService.status(), false);
                     return 1;
                 }))
                 .then(Commands.literal("toggle").executes(context -> {
                     TranslationService.toggle();
-                    context.getSource().sendSuccess(() -> Component.literal(TranslationService.status()), false);
+                    context.getSource().sendSuccess(() -> TranslationService.status(), false);
                     return 1;
                 }))
                 .then(Commands.literal("config").executes(context -> {

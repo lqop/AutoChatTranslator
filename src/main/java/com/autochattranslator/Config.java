@@ -13,6 +13,7 @@ public final class Config {
     public static final ForgeConfigSpec.BooleanValue TRANSLATE_OWN_MESSAGES;
     public static final ForgeConfigSpec.BooleanValue IGNORE_COMMANDS;
     public static final ForgeConfigSpec.BooleanValue SHOW_SENDER;
+    public static final ForgeConfigSpec.BooleanValue HOVER_ORIGINAL;
     public static final ForgeConfigSpec.ConfigValue<String> PREFIX;
 
     public static final ForgeConfigSpec.EnumValue<ProviderType> PROVIDER;
@@ -52,6 +53,8 @@ public final class Config {
                 .define("ignoreCommands", true);
         SHOW_SENDER = b.comment("在译文行中显示发送者名称。")
                 .define("showSender", true);
+        HOVER_ORIGINAL = b.comment("鼠标悬停在译文上显示原文，点击译文复制原文。")
+                .define("hoverOriginal", true);
         PREFIX = b.comment("译文行的前缀。")
                 .define("translationPrefix", "[译] ");
         b.pop();

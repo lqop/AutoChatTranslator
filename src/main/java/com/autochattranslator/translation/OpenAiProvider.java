@@ -14,15 +14,21 @@ public final class OpenAiProvider implements TranslationProvider {
 
     @Override
     public String translate(String text, String sourceLang, String targetLang) throws Exception {
-        String baseUrl = Config.OPENAI_BASE_URL.get().replaceAll("/+$", "");
+        return translate(text, targetLang, Config.OPENAI_BASE_URL.get(), Config.OPENAI_MODEL.get(),
+                Config.OPENAI_API_KEY.get(), Config.OPENAI_MAX_TOKENS.get());
+    }
+
+    public static String translate(String text, String targetLang, String baseUrl, String model,
+                                   String key, int maxTokens) throws Exception {
+        baseUrl = baseUrl.trim().replaceAll("/+$", "");
         if (baseUrl.isBlank()) {
             throw new IOException("openaiBaseUrl is empty");
         }
 
         JsonObject payload = new JsonObject();
-        payload.addProperty("model", Config.OPENAI_MODEL.get());
+        payload.addProperty("model", model.trim());
         payload.addProperty("temperature", 0.2);
-        payload.addProperty("max_tokens", Config.OPENAI_MAX_TOKENS.get());
+        payload.addProperty("max_tokens", maxTokens);
         payload.addProperty("stream", false);
 
         JsonArray messages = new JsonArray();
@@ -39,7 +45,7 @@ public final class OpenAiProvider implements TranslationProvider {
         payload.add("messages", messages);
 
         Map<String, String> headers = new HashMap<>();
-        String key = Config.OPENAI_API_KEY.get();
+        key = key.trim();
         if (!key.isBlank()) {
             headers.put("Authorization", "Bearer " + key);
         }
